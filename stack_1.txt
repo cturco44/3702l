@@ -1,0 +1,4 @@
+        lw      0        1        four
+done    halt
+four    .fill   4
+    .fill Stack

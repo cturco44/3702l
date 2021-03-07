@@ -1,0 +1,5 @@
+1 1 1 1
+8388608
+0
+Stack U 0
+0 .fill Stack

@@ -1,0 +1,16 @@
+    lw  0   0   0
+start   lw  0   0   four
+    sw  0   0   four
+    lw  0   0   start
+    lw  0   0   start
+    lw  0   0   Hi
+    sw  0   1   Hi
+    sw  0   1   Hi
+    lw  0   0   By
+    sw  0   0   By
+    .fill   By
+    .fill   Hi
+    .fill   start
+three   .fill   three
+four   .fill   4
+Hi  .fill   2

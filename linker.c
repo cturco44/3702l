@@ -18,7 +18,18 @@ typedef struct SymbolTableEntry SymbolTableEntry;
 typedef struct RelocationTableEntry RelocationTableEntry;
 typedef struct CombinedFiles CombinedFiles;
 typedef struct DefinedSymbol DefinedSymbol;
-
+typedef struct DebugEntry DebugEntry;
+typedef struct DebugHolder DebugHolder;
+struct DebugEntry {
+    char type[7];
+    int regA;
+    int regB;
+    int offset;
+};
+struct DebugHolder {
+    DebugEntry holder[100];
+    int size;
+};
 struct DefinedSymbol {
     char label[7];
     int address;
@@ -66,6 +77,7 @@ void check_duplicate_label(DefinedSymbol allSymbols[], int size, char* label);
 void check_undefined_label(DefinedSymbol allSymbols[], int size, char* label);
 int get_new_address(FileData arr[], int file_idx, int idx, int total_text_size, bool is_data);
 int extractBits(int num, int position, int num_bits);
+void push_back_debug(int x, DebugHolder *hold);
 DefinedSymbol find_symbol(DefinedSymbol allSymbols[], int size, char* label);
 int main(int argc, char *argv[])
 {
@@ -158,15 +170,24 @@ int main(int argc, char *argv[])
         numFiles = i + 1;
 	} // end reading files
     int total_text_size = 0;
+    int total_data_size = 0;
     for(int i = 0; i < numFiles; ++i) {
         total_text_size += files[i].textSize;
+        total_data_size += files[i].dataSize;
     }
     DefinedSymbol allSymbols[600];
     int all_symbols_size = 0;
     for (int file = 0; file < numFiles; ++file) {
         int numSymbols = files[file].symbolTableSize;
         for(int i = 0; i < numSymbols; ++i) {
-            if(files[file].symbolTable[i].location == 'T') {
+            if(strcmp(files[file].symbolTable[i].label, "Stack") == 0 && files[file].symbolTable[i].location != 'U') {
+                printf("Error: Stack global variable defined\n");
+                exit(1);
+            }
+            else if (strcmp(files[file].symbolTable[i].label, "Stack") == 0) {
+                
+            }
+            else if(files[file].symbolTable[i].location == 'T') {
                 DefinedSymbol x;
                 x.address = get_total_size(file, files) + files[file].symbolTable[i].offset;
                 strcpy(x.label, files[file].symbolTable[i].label);
@@ -186,7 +207,12 @@ int main(int argc, char *argv[])
             }
         }
     }
-    
+    DefinedSymbol x;
+    x.address = total_data_size + total_text_size;
+    x.file = numFiles;
+    strcpy(x.label, "Stack");
+    allSymbols[all_symbols_size] = x;
+    ++all_symbols_size;
     //Check undefined labels
     for (int file = 0; file < numFiles; ++file) {
         int numSymbols = files[file].symbolTableSize;
@@ -205,16 +231,33 @@ int main(int argc, char *argv[])
             if(strcmp(files[file].relocTable[i].inst, ".fill") != 0 && isupper(first_letter) == 0) {
                 int idx = files[file].relocTable[i].offset;
                 int offset = extractBits(files[file].text[idx], 0, 16);
-                int data_idx = offset % files[file].textSize;
-                int new_address = get_new_address(files, file, data_idx, total_text_size, true);
-                files[file].text[idx] += new_address - offset;
+                //Data Section
+                if(offset >= files[file].textSize) {
+                    int data_idx = offset % files[file].textSize;
+                    int new_address = get_new_address(files, file, data_idx, total_text_size, true);
+                    files[file].text[idx] += new_address - offset;
+                }
+                //Text section
+                else {
+                    int new_address = get_new_address(files, file, offset, total_text_size, false);
+                    files[file].text[idx] += new_address - offset;
+                }
+                
             }
             //.fill
             else if(isupper(first_letter) == 0) {
                 int data_idx = files[file].relocTable[i].offset;
-                int text_idx = files[file].data[data_idx];
-                int new_address = get_new_address(files, file, text_idx, total_text_size, false);
-                files[file].data[data_idx] += new_address - text_idx;
+                int idx = files[file].data[data_idx];
+                //It's in data
+                if(idx >= files[file].textSize) {
+                    idx = idx - files[file].textSize;
+                    int new_address = get_new_address(files, file, idx, total_text_size, true);
+                    files[file].data[data_idx] = new_address;
+                }
+                else {
+                    int new_address = get_new_address(files, file, idx, total_text_size, false);
+                    files[file].data[data_idx] = new_address;
+                }
                                          
             }
             //global lw or sw
@@ -224,9 +267,17 @@ int main(int argc, char *argv[])
                 if(file == x.file) {
                     int idx = files[file].relocTable[i].offset;
                     int offset = extractBits(files[file].text[idx], 0, 16);
-                    int data_idx = offset % files[file].textSize;
-                    int new_address = get_new_address(files, file, data_idx, total_text_size, true);
-                    files[file].text[idx] += new_address - offset;
+                    //Data Section
+                    if(offset >= files[file].textSize) {
+                        int data_idx = offset % files[file].textSize;
+                        int new_address = get_new_address(files, file, data_idx, total_text_size, true);
+                        files[file].text[idx] += new_address - offset;
+                    }
+                    //Text section
+                    else {
+                        int new_address = get_new_address(files, file, offset, total_text_size, false);
+                        files[file].text[idx] += new_address - offset;
+                    }
                 }
                 else {
                     int text_idx = files[file].relocTable[i].offset;
@@ -239,9 +290,17 @@ int main(int argc, char *argv[])
                 //Label defined here
                 if(file == x.file) {
                     int data_idx = files[file].relocTable[i].offset;
-                    int text_idx = files[file].data[data_idx];
-                    int new_address = get_new_address(files, file, text_idx, total_text_size, false);
-                    files[file].data[data_idx] += new_address - text_idx;
+                    int idx = files[file].data[data_idx];
+                    //It's in data
+                    if(idx >= files[file].textSize) {
+                        idx = idx - files[file].textSize;
+                        int new_address = get_new_address(files, file, idx, total_text_size, true);
+                        files[file].data[data_idx] = new_address;
+                    }
+                    else {
+                        int new_address = get_new_address(files, file, idx, total_text_size, false);
+                        files[file].data[data_idx] = new_address;
+                    }
                 }
                 else {
                     int data_idx = files[file].relocTable[i].offset;
@@ -251,24 +310,47 @@ int main(int argc, char *argv[])
         }
     }
     
-    
+    DebugHolder hold;
+    hold.size = 0;
     for(int i = 0; i < numFiles; ++i) {
         for(int t = 0; t < files[i].textSize; ++t) {
             fprintf(outFilePtr, "%d\n", files[i].text[t]);
+            push_back_debug(files[i].text[t], &hold);
         }
     }
     for(int i = 0; i < numFiles; ++i) {
         for(int d = 0; d < files[i].dataSize; ++d) {
             fprintf(outFilePtr, "%d\n", files[i].data[d]);
+            push_back_debug(files[i].data[d], &hold);
         }
     }
-    
-
 	// *** INSERT YOUR CODE BELOW ***
 	//    Begin the linking process
 	//    Happy coding!!!
 
 } // end main
+void push_back_debug(int x, DebugHolder *hold) {
+    int opcode = extractBits(x, 22, 3);
+    DebugEntry temp;
+    if(opcode == 0b010) {
+        strcpy(temp.type, "lw");
+        temp.offset = extractBits(x, 0, 16);
+        temp.regA = extractBits(x, 19, 3);
+        temp.regB = extractBits(x, 16, 3);
+    }
+    else if (opcode == 0b011) {
+        strcpy(temp.type, "sw");
+        temp.offset = extractBits(x, 0, 16);
+        temp.regA = extractBits(x, 19, 3);
+        temp.regB = extractBits(x, 16, 3);
+    }
+    else {
+        strcpy(temp.type, ".fill");
+        temp.offset = x;
+    }
+    hold->holder[hold->size] = temp;
+    ++hold->size;
+}
 DefinedSymbol find_symbol(DefinedSymbol allSymbols[], int size, char* label) {
     for(int i = 0; i < size; ++i) {
         if(strcmp(allSymbols[i].label, label) == 0) {
@@ -278,6 +360,7 @@ DefinedSymbol find_symbol(DefinedSymbol allSymbols[], int size, char* label) {
     printf("Error symbol not found");
     exit(1);
 }
+//idx is either data index or text_index, need to convert before
 int get_new_address(FileData arr[], int file_idx, int idx, int total_text_size, bool is_data) {
     if(is_data) {
         int prior_data_size = 0;

@@ -1,0 +1,6 @@
+    lw  0   0   a1
+    lw  0   0   A1
+    lw  0   0   a2
+a1  lw  0   0   0
+A1  lw  0   0   0
+a2  .fill   123

@@ -1,0 +1,4 @@
+subOne  lw          0       2       Neg1
+        add         1       2       1
+        jalr        7       6
+SubAdr  .fill       subOne

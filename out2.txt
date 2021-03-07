@@ -1,0 +1,32 @@
+10 6 2 13
+8388608
+8388622
+12582926
+8388609
+8388609
+8388623
+12648463
+12648463
+8388608
+12582912
+0
+15
+1
+13
+4
+2
+By U 0
+Hi D 5
+1 lw four
+2 sw four
+3 lw start
+4 lw start
+5 lw Hi
+6 sw Hi
+7 sw Hi
+8 lw By
+9 sw By
+0 .fill By
+1 .fill Hi
+2 .fill start
+3 .fill three

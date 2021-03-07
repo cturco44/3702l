@@ -1,0 +1,3 @@
+        lw      0        1        Five
+done    halt
+Five    .fill   7
